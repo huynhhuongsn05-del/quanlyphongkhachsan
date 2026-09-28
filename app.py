@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from datetime import datetime, date, timedelta
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 
 
@@ -27,20 +28,74 @@ HOTEL_EMAIL = "info@meliatwochannel.com"
 
 
 # ============================================================
-# 3. KẾT NỐI AIVEN MYSQL
+# 3. CẤU HÌNH AIVEN MYSQL
+# ============================================================
+#
+# KHÔNG ghi password trực tiếp vào code.
+#
+# Trên Streamlit Cloud:
+#
+# Manage app
+#     ↓
+# Settings
+#     ↓
+# Secrets
+#
+# Thêm:
+#
+# [mysql]
+# user = "avnadmin"
+# password = "MAT_KHAU_AIVEN"
+# host = "mysql-19728385-npmaihuong-927f.b.aivencloud.com"
+# port = 27942
+# database = "defaultdb"
+#
 # ============================================================
 
-DB = {
-    "user": "avnadmin",
+def get_database_config():
 
-    # ⚠️ THAY BẰNG MẬT KHẨU AIVEN CỦA EM
-    "password": "AVNS_zBDlzsF9I5fC-EdWcl0",
+    try:
 
-    "host": "mysql-19728385-npmaihuong-927f.b.aivencloud.com",
-    "port": 27942,
-    "database": "defaultdb"
-}
+        return {
+            "user": st.secrets["mysql"]["user"],
+            "password": st.secrets["mysql"]["password"],
+            "host": st.secrets["mysql"]["host"],
+            "port": int(st.secrets["mysql"]["port"]),
+            "database": st.secrets["mysql"]["database"]
+        }
 
+    except Exception as e:
+
+        st.error("❌ Chưa cấu hình kết nối Aiven MySQL.")
+
+        st.info(
+            """
+            Hãy vào:
+
+            Streamlit Cloud → Manage app → Settings → Secrets
+
+            và thêm cấu hình:
+
+            [mysql]
+            user = "avnadmin"
+            password = "MAT_KHAU_AIVEN"
+            host = "HOST_AIVEN"
+            port = 27942
+            database = "defaultdb"
+            """
+        )
+
+        st.code(str(e))
+
+        st.stop()
+
+
+DB = get_database_config()
+
+
+# ============================================================
+# 4. DATABASE URL
+# ============================================================
 
 DATABASE_URL = URL.create(
     drivername="mysql+pymysql",
@@ -53,7 +108,7 @@ DATABASE_URL = URL.create(
 
 
 # ============================================================
-# 4. DATABASE ENGINE
+# 5. DATABASE ENGINE
 # ============================================================
 
 @st.cache_resource
@@ -70,7 +125,7 @@ def get_db_engine():
 
 
 # ============================================================
-# 5. KIỂM TRA DATABASE
+# 6. KIỂM TRA DATABASE
 # ============================================================
 
 def test_database_connection():
@@ -96,7 +151,7 @@ db_connected, db_message = test_database_connection()
 
 
 # ============================================================
-# 6. CSS
+# 7. CSS
 # ============================================================
 
 st.markdown(
@@ -150,7 +205,7 @@ st.markdown(
 
 
 # ============================================================
-# 7. HIỂN THỊ THÔNG TIN DATABASE
+# 8. HIỂN THỊ THÔNG TIN DATABASE
 # ============================================================
 
 with st.expander("🔧 Kiểm tra kết nối MySQL"):
@@ -182,7 +237,7 @@ if not db_connected:
 
 
 # ============================================================
-# 8. HÀM ĐỌC DATABASE
+# 9. HÀM ĐỌC DATABASE
 # ============================================================
 
 def read_query(sql, params=None):
@@ -208,7 +263,7 @@ def read_query(sql, params=None):
 
 
 # ============================================================
-# 9. HÀM GHI DATABASE
+# 10. HÀM GHI DATABASE
 # ============================================================
 
 def execute_query(sql, params=None):
@@ -235,12 +290,13 @@ def execute_query(sql, params=None):
 
 
 # ============================================================
-# 10. KHỞI TẠO DATABASE
+# 11. KHỞI TẠO DATABASE
 # ============================================================
 
 def init_db():
 
     engine = get_db_engine()
+
 
     # --------------------------------------------------------
     # LOẠI PHÒNG
@@ -396,7 +452,7 @@ def init_db():
 
 
     # --------------------------------------------------------
-    # DỊCH VỤ KHÁCH SẠN
+    # DỊCH VỤ
     # --------------------------------------------------------
 
     create_services = """
@@ -575,42 +631,20 @@ def init_db():
 
     with engine.begin() as conn:
 
-        conn.exec_driver_sql(
-            create_room_types
-        )
+        conn.exec_driver_sql(create_room_types)
+        conn.exec_driver_sql(create_rooms)
+        conn.exec_driver_sql(create_guests)
+        conn.exec_driver_sql(create_reservations)
+        conn.exec_driver_sql(create_services)
+        conn.exec_driver_sql(create_service_usages)
+        conn.exec_driver_sql(create_invoices)
+        conn.exec_driver_sql(create_housekeeping)
+        conn.exec_driver_sql(create_maintenance)
 
-        conn.exec_driver_sql(
-            create_rooms
-        )
 
-        conn.exec_driver_sql(
-            create_guests
-        )
-
-        conn.exec_driver_sql(
-            create_reservations
-        )
-
-        conn.exec_driver_sql(
-            create_services
-        )
-
-        conn.exec_driver_sql(
-            create_service_usages
-        )
-
-        conn.exec_driver_sql(
-            create_invoices
-        )
-
-        conn.exec_driver_sql(
-            create_housekeeping
-        )
-
-        conn.exec_driver_sql(
-            create_maintenance
-        )
-
+# ============================================================
+# 12. CHẠY KHỞI TẠO DATABASE
+# ============================================================
 
 try:
 
@@ -628,7 +662,7 @@ except Exception as e:
 
 
 # ============================================================
-# 11. THÊM DỮ LIỆU MẪU
+# 13. DỮ LIỆU MẪU
 # ============================================================
 
 def create_sample_data():
@@ -755,7 +789,9 @@ def create_sample_data():
 
         room_types_df = read_query(
             """
-            SELECT id, type_name
+            SELECT
+                id,
+                type_name
             FROM room_types
             ORDER BY id
             """
@@ -955,7 +991,7 @@ except Exception as e:
 
 
 # ============================================================
-# 12. SESSION STATE
+# 14. SESSION STATE
 # ============================================================
 
 if "admin_logged_in" not in st.session_state:
@@ -964,7 +1000,7 @@ if "admin_logged_in" not in st.session_state:
 
 
 # ============================================================
-# 13. SIDEBAR
+# 15. SIDEBAR
 # ============================================================
 
 st.sidebar.title(
@@ -997,7 +1033,7 @@ page = st.sidebar.radio(
 
 
 # ============================================================
-# 14. TỔNG QUAN
+# 16. TỔNG QUAN
 # ============================================================
 
 if page == "🏠 Tổng quan":
@@ -1022,10 +1058,6 @@ if page == "🏠 Tổng quan":
         "🟢 Hệ thống khách sạn đang hoạt động"
     )
 
-
-    # --------------------------------------------------------
-    # THỐNG KÊ PHÒNG
-    # --------------------------------------------------------
 
     rooms_df = read_query(
         """
@@ -1123,10 +1155,6 @@ if page == "🏠 Tổng quan":
     st.markdown("---")
 
 
-    # --------------------------------------------------------
-    # BẢNG PHÒNG
-    # --------------------------------------------------------
-
     st.subheader(
         "🛏️ Tình trạng phòng"
     )
@@ -1167,7 +1195,9 @@ if page == "🏠 Tổng quan":
                 errors="coerce"
             )
             .fillna(0)
-            .apply(lambda x: f"{x:,.0f} VNĐ")
+            .apply(
+                lambda x: f"{x:,.0f} VNĐ"
+            )
         )
 
 
@@ -1212,7 +1242,7 @@ if page == "🏠 Tổng quan":
 
 
 # ============================================================
-# 15. QUẢN LÝ PHÒNG
+# 17. QUẢN LÝ PHÒNG
 # ============================================================
 
 elif page == "🛏️ Quản lý phòng":
@@ -1229,10 +1259,6 @@ elif page == "🛏️ Quản lý phòng":
         ]
     )
 
-
-    # ========================================================
-    # SƠ ĐỒ PHÒNG
-    # ========================================================
 
     with tab1:
 
@@ -1356,40 +1382,51 @@ elif page == "🛏️ Quản lý phòng":
                     "⚙️ Quản lý phòng"
                 ):
 
+                    status_options = [
+                        "Trống",
+                        "Đã đặt",
+                        "Đang ở",
+                        "Chờ dọn",
+                        "Khóa phòng"
+                    ]
+
+                    current_status = room["status"]
+
+                    if current_status not in status_options:
+                        current_status = "Trống"
+
+
                     new_status = st.selectbox(
                         "Trạng thái phòng",
-                        [
-                            "Trống",
-                            "Đã đặt",
-                            "Đang ở",
-                            "Chờ dọn",
-                            "Khóa phòng"
-                        ],
-                        index=[
-                            "Trống",
-                            "Đã đặt",
-                            "Đang ở",
-                            "Chờ dọn",
-                            "Khóa phòng"
-                        ].index(room["status"]),
+                        status_options,
+                        index=status_options.index(
+                            current_status
+                        ),
                         key=f"status_{room['id']}"
                     )
 
 
+                    housekeeping_options = [
+                        "Sạch",
+                        "Đang dọn",
+                        "Bẩn",
+                        "Kiểm tra"
+                    ]
+
+                    current_housekeeping = room[
+                        "housekeeping_status"
+                    ]
+
+                    if current_housekeeping not in housekeeping_options:
+                        current_housekeeping = "Sạch"
+
+
                     new_housekeeping = st.selectbox(
                         "Tình trạng vệ sinh",
-                        [
-                            "Sạch",
-                            "Đang dọn",
-                            "Bẩn",
-                            "Kiểm tra"
-                        ],
-                        index=[
-                            "Sạch",
-                            "Đang dọn",
-                            "Bẩn",
-                            "Kiểm tra"
-                        ].index(room["housekeeping_status"]),
+                        housekeeping_options,
+                        index=housekeeping_options.index(
+                            current_housekeeping
+                        ),
                         key=f"house_{room['id']}"
                     )
 
@@ -1406,7 +1443,7 @@ elif page == "🛏️ Quản lý phòng":
                         key=f"update_room_{room['id']}"
                     ):
 
-                        execute_query(
+                        success = execute_query(
                             """
                             UPDATE rooms
                             SET
@@ -1424,19 +1461,17 @@ elif page == "🛏️ Quản lý phòng":
                         )
 
 
-                        st.success(
-                            "✅ Đã cập nhật phòng."
-                        )
+                        if success:
 
-                        st.rerun()
+                            st.success(
+                                "✅ Đã cập nhật phòng."
+                            )
+
+                            st.rerun()
 
 
                 st.markdown("---")
 
-
-    # ========================================================
-    # THÊM PHÒNG
-    # ========================================================
 
     with tab2:
 
@@ -1477,7 +1512,7 @@ elif page == "🛏️ Quản lý phòng":
 
 
                 room_type_options = [
-                    f"{row.type_name}"
+                    row.type_name
                     for row in room_types.itertuples()
                 ]
 
@@ -1565,7 +1600,7 @@ elif page == "🛏️ Quản lý phòng":
 
 
 # ============================================================
-# 16. LOẠI PHÒNG
+# 18. LOẠI PHÒNG
 # ============================================================
 
 elif page == "🏷️ Loại phòng":
@@ -1796,7 +1831,7 @@ elif page == "🏷️ Loại phòng":
 
 
 # ============================================================
-# 17. KHÁCH HÀNG
+# 19. KHÁCH HÀNG
 # ============================================================
 
 elif page == "👤 Khách hàng":
@@ -2007,7 +2042,7 @@ elif page == "👤 Khách hàng":
 
 
 # ============================================================
-# 18. ĐẶT PHÒNG
+# 20. ĐẶT PHÒNG
 # ============================================================
 
 elif page == "📅 Đặt phòng":
@@ -2037,6 +2072,7 @@ elif page == "📅 Đặt phòng":
             r.floor,
             r.status,
             r.housekeeping_status,
+            r.maintenance_status,
             rt.type_name,
             rt.price_per_night,
             rt.max_adults,
@@ -2202,12 +2238,10 @@ elif page == "📅 Đặt phòng":
                     booking_code = (
                         "MT"
                         + datetime.now().strftime(
-                            "%Y%m%d%H%M%S"
+                            "%Y%m%d%H%M%S%f"
                         )
                     )
 
-
-                    # Kiểm tra phòng có bị đặt trùng không
 
                     conflict = read_query(
                         """
@@ -2331,7 +2365,7 @@ elif page == "📅 Đặt phòng":
 
 
 # ============================================================
-# 19. CHECK-IN
+# 21. CHECK-IN
 # ============================================================
 
 elif page == "🛎️ Check-in":
@@ -2439,7 +2473,7 @@ elif page == "🛎️ Check-in":
                     use_container_width=True
                 ):
 
-                    execute_query(
+                    success = execute_query(
                         """
                         UPDATE reservations
                         SET reservation_status = 'Đã check-in'
@@ -2451,31 +2485,35 @@ elif page == "🛎️ Check-in":
                     )
 
 
-                    execute_query(
-                        """
-                        UPDATE rooms
-                        SET status = 'Đang ở'
-                        WHERE id = (
-                            SELECT room_id
-                            FROM reservations
-                            WHERE id = :id
+                    if success:
+
+                        room_update = execute_query(
+                            """
+                            UPDATE rooms
+                            SET status = 'Đang ở'
+                            WHERE id = (
+                                SELECT room_id
+                                FROM reservations
+                                WHERE id = :id
+                            )
+                            """,
+                            {
+                                "id": int(booking["id"])
+                            }
                         )
-                        """,
-                        {
-                            "id": int(booking["id"])
-                        }
-                    )
 
 
-                    st.success(
-                        "🎉 Check-in thành công!"
-                    )
+                        if room_update:
 
-                    st.rerun()
+                            st.success(
+                                "🎉 Check-in thành công!"
+                            )
+
+                            st.rerun()
 
 
 # ============================================================
-# 20. CHECK-OUT
+# 22. CHECK-OUT
 # ============================================================
 
 elif page == "🚪 Check-out":
@@ -2550,7 +2588,7 @@ elif page == "🚪 Check-out":
                     use_container_width=True
                 ):
 
-                    execute_query(
+                    success = execute_query(
                         """
                         UPDATE reservations
                         SET reservation_status = 'Đã check-out'
@@ -2562,39 +2600,43 @@ elif page == "🚪 Check-out":
                     )
 
 
-                    execute_query(
-                        """
-                        UPDATE rooms
-                        SET
-                            status = 'Chờ dọn',
-                            housekeeping_status = 'Bẩn'
-                        WHERE id = (
-                            SELECT room_id
-                            FROM reservations
-                            WHERE id = :id
+                    if success:
+
+                        room_update = execute_query(
+                            """
+                            UPDATE rooms
+                            SET
+                                status = 'Chờ dọn',
+                                housekeeping_status = 'Bẩn'
+                            WHERE id = (
+                                SELECT room_id
+                                FROM reservations
+                                WHERE id = :id
+                            )
+                            """,
+                            {
+                                "id": int(booking["id"])
+                            }
                         )
-                        """,
-                        {
-                            "id": int(booking["id"])
-                        }
-                    )
 
 
-                    st.success(
-                        "✅ Check-out thành công."
-                    )
+                        if room_update:
+
+                            st.success(
+                                "✅ Check-out thành công."
+                            )
 
 
-                    st.info(
-                        "🧹 Phòng đã chuyển sang trạng thái 'Chờ dọn'."
-                    )
+                            st.info(
+                                "🧹 Phòng đã chuyển sang trạng thái 'Chờ dọn'."
+                            )
 
 
-                    st.rerun()
+                            st.rerun()
 
 
 # ============================================================
-# 21. HOUSEKEEPING
+# 23. HOUSEKEEPING
 # ============================================================
 
 elif page == "🧹 Housekeeping":
@@ -2722,7 +2764,7 @@ elif page == "🧹 Housekeeping":
 
 
 # ============================================================
-# 22. BẢO TRÌ
+# 24. BẢO TRÌ
 # ============================================================
 
 elif page == "🔧 Bảo trì":
@@ -2881,10 +2923,11 @@ elif page == "🔧 Bảo trì":
 
                         if success:
 
-                            execute_query(
+                            room_update = execute_query(
                                 """
                                 UPDATE rooms
-                                SET maintenance_status = 'Bảo trì',
+                                SET
+                                    maintenance_status = 'Bảo trì',
                                     status = 'Khóa phòng'
                                 WHERE id = :id
                                 """,
@@ -2894,11 +2937,13 @@ elif page == "🔧 Bảo trì":
                             )
 
 
-                            st.success(
-                                "✅ Đã tạo phiếu bảo trì."
-                            )
+                            if room_update:
 
-                            st.rerun()
+                                st.success(
+                                    "✅ Đã tạo phiếu bảo trì."
+                                )
+
+                                st.rerun()
 
 
     with tab2:
@@ -2954,7 +2999,7 @@ elif page == "🔧 Bảo trì":
 
                     st.write(
                         f"💰 Chi phí: "
-                        f"**{float(item['cost']):,.0f} VNĐ**"
+                        f"**{float(item['cost'] or 0):,.0f} VNĐ**"
                     )
 
                     st.write(
@@ -2983,7 +3028,7 @@ elif page == "🔧 Bảo trì":
                         key=f"maintenance_save_{item['id']}"
                     ):
 
-                        execute_query(
+                        success = execute_query(
                             """
                             UPDATE maintenance
                             SET
@@ -3003,7 +3048,7 @@ elif page == "🔧 Bảo trì":
                         )
 
 
-                        if new_status == "Hoàn thành":
+                        if success and new_status == "Hoàn thành":
 
                             execute_query(
                                 """
@@ -3024,15 +3069,17 @@ elif page == "🔧 Bảo trì":
                             )
 
 
-                        st.success(
-                            "✅ Đã cập nhật."
-                        )
+                        if success:
 
-                        st.rerun()
+                            st.success(
+                                "✅ Đã cập nhật."
+                            )
+
+                            st.rerun()
 
 
 # ============================================================
-# 23. DỊCH VỤ
+# 25. DỊCH VỤ
 # ============================================================
 
 elif page == "🍽️ Dịch vụ":
@@ -3050,10 +3097,6 @@ elif page == "🍽️ Dịch vụ":
         ]
     )
 
-
-    # ========================================================
-    # DANH SÁCH DỊCH VỤ
-    # ========================================================
 
     with tab1:
 
@@ -3090,7 +3133,9 @@ elif page == "🍽️ Dịch vụ":
                     errors="coerce"
                 )
                 .fillna(0)
-                .apply(lambda x: f"{x:,.0f} VNĐ")
+                .apply(
+                    lambda x: f"{x:,.0f} VNĐ"
+                )
             )
 
 
@@ -3111,10 +3156,6 @@ elif page == "🍽️ Dịch vụ":
                 hide_index=True
             )
 
-
-    # ========================================================
-    # THÊM DỊCH VỤ
-    # ========================================================
 
     with tab2:
 
@@ -3168,7 +3209,7 @@ elif page == "🍽️ Dịch vụ":
 
                 else:
 
-                    execute_query(
+                    success = execute_query(
                         """
                         INSERT INTO services
                         (
@@ -3203,16 +3244,14 @@ elif page == "🍽️ Dịch vụ":
                     )
 
 
-                    st.success(
-                        "🎉 Đã thêm dịch vụ."
-                    )
+                    if success:
 
-                    st.rerun()
+                        st.success(
+                            "🎉 Đã thêm dịch vụ."
+                        )
 
+                        st.rerun()
 
-    # ========================================================
-    # GHI NHẬN SỬ DỤNG DỊCH VỤ
-    # ========================================================
 
     with tab3:
 
@@ -3352,7 +3391,7 @@ elif page == "🍽️ Dịch vụ":
 
                 if submit:
 
-                    execute_query(
+                    success = execute_query(
                         """
                         INSERT INTO service_usages
                         (
@@ -3388,15 +3427,17 @@ elif page == "🍽️ Dịch vụ":
                     )
 
 
-                    st.success(
-                        "✅ Đã ghi nhận dịch vụ."
-                    )
+                    if success:
 
-                    st.rerun()
+                        st.success(
+                            "✅ Đã ghi nhận dịch vụ."
+                        )
+
+                        st.rerun()
 
 
 # ============================================================
-# 24. HÓA ĐƠN
+# 26. HÓA ĐƠN
 # ============================================================
 
 elif page == "🧾 Hóa đơn":
@@ -3465,13 +3506,9 @@ elif page == "🧾 Hóa đơn":
 
 
         room_total = float(
-            reservation["room_total"]
+            reservation["room_total"] or 0
         )
 
-
-        # ----------------------------------------------------
-        # DỊCH VỤ
-        # ----------------------------------------------------
 
         service_total_df = read_query(
             """
@@ -3490,7 +3527,7 @@ elif page == "🧾 Hóa đơn":
 
 
         service_total = float(
-            service_total_df.iloc[0]["total"]
+            service_total_df.iloc[0]["total"] or 0
         )
 
 
@@ -3524,9 +3561,10 @@ elif page == "🧾 Hóa đơn":
         st.markdown("---")
 
 
-        # ----------------------------------------------------
-        # CHI TIẾT DỊCH VỤ
-        # ----------------------------------------------------
+        st.subheader(
+            "🍽️ Chi tiết dịch vụ"
+        )
+
 
         usage_df = read_query(
             """
@@ -3548,11 +3586,6 @@ elif page == "🧾 Hóa đơn":
         )
 
 
-        st.subheader(
-            "🍽️ Chi tiết dịch vụ"
-        )
-
-
         if usage_df.empty:
 
             st.info(
@@ -3570,10 +3603,6 @@ elif page == "🧾 Hóa đơn":
 
         st.markdown("---")
 
-
-        # ----------------------------------------------------
-        # TẠO HÓA ĐƠN
-        # ----------------------------------------------------
 
         discount = st.number_input(
             "🏷️ Giảm giá",
@@ -3597,6 +3626,11 @@ elif page == "🧾 Hóa đơn":
             + service_total
             - discount
         )
+
+
+        if subtotal < 0:
+
+            subtotal = 0
 
 
         tax = (
@@ -3655,87 +3689,110 @@ elif page == "🧾 Hóa đơn":
             use_container_width=True
         ):
 
-            invoice_code = (
-                "HD"
-                + datetime.now().strftime(
-                    "%Y%m%d%H%M%S"
-                )
-            )
-
-
-            success = execute_query(
+            existing_invoice = read_query(
                 """
-                INSERT INTO invoices
-                (
-                    invoice_code,
-                    reservation_id,
-                    room_total,
-                    service_total,
-                    discount,
-                    tax,
-                    grand_total,
-                    paid_amount,
-                    payment_method,
-                    payment_status,
-                    created_at
-                )
-
-                VALUES
-                (
-                    :invoice_code,
-                    :reservation_id,
-                    :room_total,
-                    :service_total,
-                    :discount,
-                    :tax,
-                    :grand_total,
-                    :paid_amount,
-                    :payment_method,
-                    :payment_status,
-                    :created_at
-                )
+                SELECT COUNT(*) AS total
+                FROM invoices
+                WHERE reservation_id = :reservation_id
                 """,
                 {
-                    "invoice_code": invoice_code,
-                    "reservation_id": reservation_id,
-                    "room_total": room_total,
-                    "service_total": service_total,
-                    "discount": discount,
-                    "tax": tax,
-                    "grand_total": grand_total,
-                    "paid_amount": paid_amount,
-                    "payment_method": payment_method,
-                    "payment_status": invoice_status,
-                    "created_at": datetime.now()
+                    "reservation_id": reservation_id
                 }
             )
 
 
-            if success:
+            if (
+                not existing_invoice.empty
+                and int(existing_invoice.iloc[0]["total"]) > 0
+            ):
 
-                execute_query(
+                st.warning(
+                    "⚠️ Booking này đã có hóa đơn."
+                )
+
+            else:
+
+                invoice_code = (
+                    "HD"
+                    + datetime.now().strftime(
+                        "%Y%m%d%H%M%S%f"
+                    )
+                )
+
+
+                success = execute_query(
                     """
-                    UPDATE reservations
-                    SET
-                        payment_status = :status
-                    WHERE id = :id
+                    INSERT INTO invoices
+                    (
+                        invoice_code,
+                        reservation_id,
+                        room_total,
+                        service_total,
+                        discount,
+                        tax,
+                        grand_total,
+                        paid_amount,
+                        payment_method,
+                        payment_status,
+                        created_at
+                    )
+
+                    VALUES
+                    (
+                        :invoice_code,
+                        :reservation_id,
+                        :room_total,
+                        :service_total,
+                        :discount,
+                        :tax,
+                        :grand_total,
+                        :paid_amount,
+                        :payment_method,
+                        :payment_status,
+                        :created_at
+                    )
                     """,
                     {
-                        "status": invoice_status,
-                        "id": reservation_id
+                        "invoice_code": invoice_code,
+                        "reservation_id": reservation_id,
+                        "room_total": room_total,
+                        "service_total": service_total,
+                        "discount": discount,
+                        "tax": tax,
+                        "grand_total": grand_total,
+                        "paid_amount": paid_amount,
+                        "payment_method": payment_method,
+                        "payment_status": invoice_status,
+                        "created_at": datetime.now()
                     }
                 )
 
 
-                st.success(
-                    f"🎉 Tạo hóa đơn thành công: **{invoice_code}**"
-                )
+                if success:
 
-                st.balloons()
+                    execute_query(
+                        """
+                        UPDATE reservations
+                        SET
+                            payment_status = :status
+                        WHERE id = :id
+                        """,
+                        {
+                            "status": invoice_status,
+                            "id": reservation_id
+                        }
+                    )
+
+
+                    st.success(
+                        f"🎉 Tạo hóa đơn thành công: **{invoice_code}**"
+                    )
+
+                    st.balloons()
 
 
 # ============================================================
-# 25. BÁO CÁO
+# 27. BÁO CÁO
 # ============================================================
 
 elif page == "📊 Báo cáo":
@@ -3744,10 +3801,6 @@ elif page == "📊 Báo cáo":
         "📊 BÁO CÁO & THỐNG KÊ KHÁCH SẠN"
     )
 
-
-    # --------------------------------------------------------
-    # DOANH THU
-    # --------------------------------------------------------
 
     invoices_df = read_query(
         """
@@ -3794,10 +3847,6 @@ elif page == "📊 Báo cáo":
         )
 
 
-    # --------------------------------------------------------
-    # BOOKING
-    # --------------------------------------------------------
-
     booking_count_df = read_query(
         """
         SELECT COUNT(*) AS total
@@ -3810,10 +3859,6 @@ elif page == "📊 Báo cáo":
         booking_count_df.iloc[0]["total"]
     )
 
-
-    # --------------------------------------------------------
-    # KHÁCH
-    # --------------------------------------------------------
 
     guest_count_df = read_query(
         """
@@ -3866,10 +3911,6 @@ elif page == "📊 Báo cáo":
     st.markdown("---")
 
 
-    # --------------------------------------------------------
-    # DOANH THU THEO NGÀY
-    # --------------------------------------------------------
-
     st.subheader(
         "📅 Doanh thu theo ngày"
     )
@@ -3909,10 +3950,6 @@ elif page == "📊 Báo cáo":
     st.markdown("---")
 
 
-    # --------------------------------------------------------
-    # CÔNG SUẤT PHÒNG
-    # --------------------------------------------------------
-
     st.subheader(
         "🛏️ Tình trạng phòng"
     )
@@ -3941,10 +3978,6 @@ elif page == "📊 Báo cáo":
 
     st.markdown("---")
 
-
-    # --------------------------------------------------------
-    # DOANH THU THEO LOẠI PHÒNG
-    # --------------------------------------------------------
 
     st.subheader(
         "🏷️ Doanh thu theo loại phòng"
@@ -3984,7 +4017,7 @@ elif page == "📊 Báo cáo":
 
 
 # ============================================================
-# 26. ADMIN
+# 28. ADMIN
 # ============================================================
 
 elif page == "🔑 Admin":
@@ -4131,7 +4164,7 @@ elif page == "🔑 Admin":
 
 
 # ============================================================
-# 27. FOOTER
+# 29. FOOTER
 # ============================================================
 
 st.sidebar.markdown("---")
