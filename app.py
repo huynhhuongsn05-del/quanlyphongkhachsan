@@ -1,9 +1,6 @@
 import pandas as pd
 import streamlit as st
-
 from datetime import datetime, date, timedelta
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
 
 
 # ============================================================
